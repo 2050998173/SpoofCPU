@@ -1,0 +1,6 @@
+id=spoofcpuzygisk
+name=Spoof CPU Zygisk
+version=1.0
+versionCode=1
+author=ApkeSU
+description=Zygisk Hook 伪装CPU为麒麟9030 Pro
