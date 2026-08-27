@@ -6,16 +6,40 @@
 #include <cstdarg>
 #include <sys/mman.h>
 #include <sys/syscall.h>
-
-#include "zygisk.hpp"
+#include "xhook.h"
 
 #define LOG_TAG "SpoofCPU"
 
-// 手动声明 xhook 函数，避免依赖头文件
-extern "C" {
-    int xhook_register(const char *pathname, const char *symbol, void *new_func, void **old_func);
-    int xhook_refresh(int verbose);
-}
+// ========== 简化版 zygisk 定义（避免下载 zygisk.hpp） ==========
+namespace zygisk {
+struct Api {
+    virtual void* getModuleDir() = 0;
+    virtual void setOption(int option) = 0;
+};
+
+struct AppSpecializeArgs {
+    // 我们不使用内部字段，所以留空
+};
+
+struct ServerSpecializeArgs {
+    // 同上
+};
+
+class ModuleBase {
+public:
+    virtual void onLoad(Api* api) {}
+    virtual void preAppSpecialize(AppSpecializeArgs* args) {}
+    virtual void postAppSpecialize(const AppSpecializeArgs* args) {}
+    virtual void preServerSpecialize(ServerSpecializeArgs* args) {}
+    virtual void postServerSpecialize(const ServerSpecializeArgs* args) {}
+};
+} // namespace zygisk
+
+#define REGISTER_ZYGISK_MODULE(clazz) \
+    extern "C" __attribute__((visibility("default"))) zygisk::ModuleBase* zygisk_module_entry() { \
+        return new clazz; \
+    }
+// ========== 简化版 zygisk 定义结束 ==========
 
 static const char* kFakeCpuInfo =
     "Processor: AArch64 Processor rev 0 (aarch64)\n"
@@ -107,7 +131,6 @@ static open_t orig_open = nullptr;
 static openat_t orig_openat = nullptr;
 
 static int make_cpuinfo_fd() {
-    // 使用 syscall 调用 memfd_create，避免头文件声明问题
     int fd = syscall(SYS_memfd_create, "cpuinfo", 0);
     if (fd < 0) {
         fd = open("/dev/null", O_RDONLY);
