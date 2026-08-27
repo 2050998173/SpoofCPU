@@ -1,0 +1,46 @@
+name: Build Zygisk CPU Spoof
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Android NDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip
+          wget https://dl.google.com/android/repository/android-ndk-r26d-linux.zip
+          unzip -q android-ndk-r26d-linux.zip
+          echo "NDK=$PWD/android-ndk-r26d" >> $GITHUB_ENV
+
+      - name: Clone xHook
+        run: git clone --depth 1 https://github.com/iqiyi/xHook.git
+
+      - name: Download zygisk.hpp
+        run: curl -o zygisk.hpp https://raw.githubusercontent.com/topjohnwu/Magisk/master/native/src/zygisk/zygisk.hpp
+
+      - name: Compile
+        run: |
+          CC=$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang
+          $CC -shared -fPIC -O2 -I. -IxHook/libxhook/jni \
+            main.cpp xHook/libxhook/jni/*.c -o arm64-v8a.so -llog
+
+      - name: Package module
+        run: |
+          mkdir -p module/zygisk
+          cp module.prop module/
+          cp arm64-v8a.so module/zygisk/
+          cd module && zip -r ../SpoofCPU-Zygisk.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpoofCPU-Zygisk
+          path: SpoofCPU-Zygisk.zip
